@@ -19,16 +19,100 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Download Gradle
+    # 先创建 Gradle 配置文件
+    - name: Create build.gradle
+      run: |
+        cat > build.gradle << 'EOL'
+        buildscript {
+            repositories {
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath "com.android.tools.build:gradle:8.1.0"
+                classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.0"
+            }
+        }
+        
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        EOL
+
+    - name: Create settings.gradle
+      run: |
+        cat > settings.gradle << 'EOL'
+        pluginManagement {
+            repositories {
+                google()
+                mavenCentral()
+                gradlePluginPortal()
+            }
+        }
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        
+        rootProject.name = "AList App"
+        include ':app'
+        EOL
+
+    - name: Create app/build.gradle
+      run: |
+        cat > app/build.gradle << 'EOL'
+        plugins {
+            id "com.android.application"
+            id "kotlin-android"
+        }
+        
+        android {
+            namespace "com.example.alistapp"
+            compileSdk 34
+            
+            defaultConfig {
+                applicationId "com.example.alistapp"
+                minSdk 21
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+            }
+            
+            buildTypes {
+                release {
+                    minifyEnabled false
+                }
+            }
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+            kotlinOptions {
+                jvmTarget = "17"
+            }
+        }
+        
+        dependencies {
+            implementation "androidx.core:core-ktx:1.12.0"
+            implementation "androidx.appcompat:appcompat:1.6.1"
+            implementation "com.google.android.material:material:1.11.0"
+        }
+        EOL
+
+    # 然后下载并初始化 Gradle
+    - name: Setup Gradle
       run: |
         wget https://services.gradle.org/distributions/gradle-8.2-bin.zip
         unzip gradle-8.2-bin.zip
-        
-    - name: Initialize Gradle Project
-      run: |
-        ./gradle-8.2/bin/gradle wrapper
+        ./gradle-8.2/bin/gradle wrapper --gradle-version 8.2
         chmod +x gradlew
-        
+
     - name: Create MainActivity
       run: |
         cat > app/src/main/java/com/example/alistapp/MainActivity.kt << 'EOL'
@@ -146,91 +230,6 @@ jobs:
                 </activity>
             </application>
         </manifest>
-        EOL
-
-    - name: Create build.gradle
-      run: |
-        cat > build.gradle << 'EOL'
-        buildscript {
-            repositories {
-                google()
-                mavenCentral()
-            }
-            dependencies {
-                classpath "com.android.tools.build:gradle:8.1.0"
-                classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.0"
-            }
-        }
-        
-        allprojects {
-            repositories {
-                google()
-                mavenCentral()
-            }
-        }
-        EOL
-
-    - name: Create app/build.gradle
-      run: |
-        cat > app/build.gradle << 'EOL'
-        plugins {
-            id "com.android.application"
-            id "kotlin-android"
-        }
-        
-        android {
-            namespace "com.example.alistapp"
-            compileSdk 34
-            
-            defaultConfig {
-                applicationId "com.example.alistapp"
-                minSdk 21
-                targetSdk 34
-                versionCode 1
-                versionName "1.0"
-            }
-            
-            buildTypes {
-                release {
-                    minifyEnabled false
-                }
-            }
-            compileOptions {
-                sourceCompatibility JavaVersion.VERSION_17
-                targetCompatibility JavaVersion.VERSION_17
-            }
-            kotlinOptions {
-                jvmTarget = "17"
-            }
-        }
-        
-        dependencies {
-            implementation "androidx.core:core-ktx:1.12.0"
-            implementation "androidx.appcompat:appcompat:1.6.1"
-            implementation "com.google.android.material:material:1.11.0"
-        }
-        EOL
-
-    - name: Create settings.gradle
-      run: |
-        cat > settings.gradle << 'EOL'
-        pluginManagement {
-            repositories {
-                google()
-                mavenCentral()
-                gradlePluginPortal()
-            }
-        }
-        dependencyResolutionManagement {
-            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-            repositories {
-                google()
-                mavenCentral()
-            }
-        }
-        
-        rootProject.name = "AList App"
-        include ':app'
         EOL
 
     - name: Build APK
