@@ -12,7 +12,28 @@ jobs:
         mkdir -p app/src/main/java/com/example/alistapp
         mkdir -p app/src/main/res/layout
         mkdir -p .github/workflows
+
+    - name: Create Gradle Wrapper Files
+      run: |
+        cat > gradlew << 'EOL'
+        #!/bin/sh
+        exec java -Xmx64m -Dfile.encoding=UTF-8 -Djava.security.egd=file:/dev/./urandom -jar gradle/wrapper/gradle-wrapper.jar "$@"
+        EOL
         
+        mkdir -p gradle/wrapper
+        cat > gradle/wrapper/gradle-wrapper.properties << 'EOL'
+        distributionBase=GRADLE_USER_HOME
+        distributionPath=wrapper/dists
+        distributionUrl=https\://services.gradle.org/distributions/gradle-8.2-bin.zip
+        networkTimeout=10000
+        zipStoreBase=GRADLE_USER_HOME
+        zipStorePath=wrapper/dists
+        EOL
+        
+        chmod +x gradlew
+        
+        curl -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/master/gradle/wrapper/gradle-wrapper.jar
+
     - name: Create MainActivity
       run: |
         cat > app/src/main/java/com/example/alistapp/MainActivity.kt << 'EOL'
@@ -141,7 +162,7 @@ jobs:
                 mavenCentral()
             }
             dependencies {
-                classpath "com.android.tools.build:gradle:7.4.2"
+                classpath "com.android.tools.build:gradle:8.1.0"
                 classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.0"
             }
         }
@@ -197,18 +218,31 @@ jobs:
 
     - name: Create settings.gradle
       run: |
-        echo 'include ":app"' > settings.gradle
+        cat > settings.gradle << 'EOL'
+        pluginManagement {
+            repositories {
+                google()
+                mavenCentral()
+                gradlePluginPortal()
+            }
+        }
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        
+        rootProject.name = "AList App"
+        include ':app'
+        EOL
 
     - name: Setup Java
       uses: actions/setup-java@v3
       with:
         distribution: 'temurin'
         java-version: '17'
-
-    - name: Setup Gradle
-      run: |
-        gradle init
-        gradle wrapper
 
     - name: Build APK
       run: ./gradlew assembleDebug
