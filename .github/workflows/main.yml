@@ -1,0 +1,189 @@
+name: Create and Build Android Project
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-and-build:
+    name: Create and Build Android Project
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: 设置工作目录
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: 初始化 Android 项目结构
+      - name: Initialize Android Project
+        run: |
+          mkdir -p app/src/main/java/com/example/myapp
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+
+          # 初始化根级 build.gradle
+          cat > build.gradle <<EOL
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:7.0.4'
+              }
+          }
+
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOL
+
+          # 初始化 settings.gradle
+          cat > settings.gradle <<EOL
+          include ':app'
+          EOL
+
+          # 初始化 app 级 build.gradle
+          mkdir app
+          cat > app/build.gradle <<EOL
+          plugins {
+              id 'com.android.application'
+              id 'kotlin-android'
+          }
+
+          android {
+              compileSdk 30
+              defaultConfig {
+                  applicationId "com.example.myapp"
+                  minSdk 21
+                  targetSdk 30
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                  }
+              }
+          }
+
+          dependencies {
+              implementation "androidx.appcompat:appcompat:1.6.1"
+              implementation "androidx.core:core-ktx:1.10.1"
+              implementation "androidx.constraintlayout:constraintlayout:2.1.4"
+              implementation "androidx.webkit:webkit:1.7.0"
+          }
+          EOL
+
+          # 创建 MainActivity.kt
+          cat > app/src/main/java/com/example/myapp/MainActivity.kt <<EOL
+          package com.example.myapp
+
+          import android.content.Context
+          import android.os.Bundle
+          import android.widget.Button
+          import android.widget.EditText
+          import android.webkit.WebView
+          import android.webkit.WebViewClient
+          import androidx.appcompat.app.AppCompatActivity
+
+          class MainActivity : AppCompatActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContentView(R.layout.activity_main)
+
+                  // 初始化 WebView
+                  val webView = findViewById<WebView>(R.id.webview)
+                  val urlInput = findViewById<EditText>(R.id.url_input)
+                  val saveButton = findViewById<Button>(R.id.save_button)
+
+                  // 启用 WebView 设置
+                  webView.webViewClient = WebViewClient()
+                  webView.settings.javaScriptEnabled = true
+
+                  // 加载已保存的 URL
+                  val sharedPreferences = getSharedPreferences("APP_PREFS", Context.MODE_PRIVATE)
+                  val savedUrl = sharedPreferences.getString("SAVED_URL", "")
+                  if (!savedUrl.isNullOrEmpty()) {
+                      webView.loadUrl(savedUrl)
+                      urlInput.setText(savedUrl)
+                  }
+
+                  // 保存并加载新的 URL
+                  saveButton.setOnClickListener {
+                      val url = urlInput.text.toString()
+                      if (url.isNotEmpty()) {
+                          webView.loadUrl(url)
+                          sharedPreferences.edit().putString("SAVED_URL", url).apply()
+                      }
+                  }
+              }
+          }
+          EOL
+
+          # 创建布局文件 activity_main.xml
+          cat > app/src/main/res/layout/activity_main.xml <<EOL
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical">
+
+              <EditText
+                  android:id="@+id/url_input"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:hint="Enter URL" />
+
+              <Button
+                  android:id="@+id/save_button"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Save and Load URL" />
+
+              <WebView
+                  android:id="@+id/webview"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent" />
+          </LinearLayout>
+          EOL
+
+          # 创建 strings.xml
+          cat > app/src/main/res/values/strings.xml <<EOL
+          <resources>
+              <string name="app_name">My Kotlin App</string>
+          </resources>
+          EOL
+
+          # 创建 AndroidManifest.xml
+          mkdir -p app/src/main
+          cat > app/src/main/AndroidManifest.xml <<EOL
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.example.myapp">
+              <application
+                  android:allowBackup="true"
+                  android:label="@string/app_name"
+                  android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
+                  <activity android:name=".MainActivity">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOL
+
+      # Step 3: 构建项目
+      - name: Build APK
+        run: ./gradlew assembleDebug
+
+      # Step 4: 上传生成的 APK
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/*.apk
