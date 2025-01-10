@@ -114,6 +114,10 @@ jobs:
 
     - name: Add Launcher Icons
       run: |
+        # 安装 ImageMagick
+        sudo apt-get update
+        sudo apt-get install -y imagemagick
+        
         # 创建一个简单的占位图标
         convert -size 48x48 xc:blue app/src/main/res/mipmap-mdpi/ic_launcher.png
         convert -size 72x72 xc:blue app/src/main/res/mipmap-hdpi/ic_launcher.png
