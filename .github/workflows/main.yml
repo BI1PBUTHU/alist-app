@@ -13,27 +13,22 @@ jobs:
         mkdir -p app/src/main/res/layout
         mkdir -p .github/workflows
 
-    - name: Create Gradle Wrapper Files
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Download Gradle
       run: |
-        cat > gradlew << 'EOL'
-        #!/bin/sh
-        exec java -Xmx64m -Dfile.encoding=UTF-8 -Djava.security.egd=file:/dev/./urandom -jar gradle/wrapper/gradle-wrapper.jar "$@"
-        EOL
+        wget https://services.gradle.org/distributions/gradle-8.2-bin.zip
+        unzip gradle-8.2-bin.zip
         
-        mkdir -p gradle/wrapper
-        cat > gradle/wrapper/gradle-wrapper.properties << 'EOL'
-        distributionBase=GRADLE_USER_HOME
-        distributionPath=wrapper/dists
-        distributionUrl=https\://services.gradle.org/distributions/gradle-8.2-bin.zip
-        networkTimeout=10000
-        zipStoreBase=GRADLE_USER_HOME
-        zipStorePath=wrapper/dists
-        EOL
-        
+    - name: Initialize Gradle Project
+      run: |
+        ./gradle-8.2/bin/gradle wrapper
         chmod +x gradlew
         
-        curl -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/master/gradle/wrapper/gradle-wrapper.jar
-
     - name: Create MainActivity
       run: |
         cat > app/src/main/java/com/example/alistapp/MainActivity.kt << 'EOL'
@@ -237,12 +232,6 @@ jobs:
         rootProject.name = "AList App"
         include ':app'
         EOL
-
-    - name: Setup Java
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'temurin'
-        java-version: '17'
 
     - name: Build APK
       run: ./gradlew assembleDebug
