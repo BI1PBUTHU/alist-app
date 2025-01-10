@@ -9,13 +9,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: 设置工作目录
+      # Step 1: Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Step 2: 初始化 Android 项目结构
+      # Step 2: Setup working directory and initialize project
       - name: Initialize Android Project
         run: |
+          # 创建一个独立的工作目录
+          mkdir -p alist
+          cd alist
+
+          # 创建所需的项目目录结构
           mkdir -p app/src/main/java/com/example/myapp
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
@@ -46,7 +51,6 @@ jobs:
           EOL
 
           # 初始化 app 级 build.gradle
-          mkdir app
           cat > app/build.gradle <<EOL
           plugins {
               id 'com.android.application'
@@ -159,7 +163,6 @@ jobs:
           EOL
 
           # 创建 AndroidManifest.xml
-          mkdir -p app/src/main
           cat > app/src/main/AndroidManifest.xml <<EOL
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
               package="com.example.myapp">
@@ -177,13 +180,15 @@ jobs:
           </manifest>
           EOL
 
-      # Step 3: 构建项目
+      # Step 3: Build the project
       - name: Build APK
-        run: ./gradlew assembleDebug
+        run: |
+          cd alist
+          ./gradlew assembleDebug
 
-      # Step 4: 上传生成的 APK
+      # Step 4: Upload the APK
       - name: Upload APK
         uses: actions/upload-artifact@v3
         with:
           name: debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: alist/app/build/outputs/apk/debug/*.apk
