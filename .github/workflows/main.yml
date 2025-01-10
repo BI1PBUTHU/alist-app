@@ -82,6 +82,9 @@ jobs:
           }
           EOL
 
+          # 初始化 Gradle Wrapper
+          gradle wrapper --gradle-version 7.0
+
           # 创建 MainActivity.kt
           cat > app/src/main/java/com/example/myapp/MainActivity.kt <<EOL
           package com.example.myapp
