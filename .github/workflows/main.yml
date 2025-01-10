@@ -47,6 +47,10 @@ jobs:
         include ':app'
         EOL
 
+        # 添加 gradle.properties 文件以支持 AndroidX
+        echo "android.useAndroidX=true" >> gradle.properties
+        echo "android.enableJetifier=true" >> gradle.properties
+
     # 创建简化后的 build.gradle
     - name: Create build.gradle
       run: |
