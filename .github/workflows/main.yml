@@ -11,6 +11,11 @@ jobs:
       run: |
         mkdir -p app/src/main/java/com/example/alistapp
         mkdir -p app/src/main/res/layout
+        mkdir -p app/src/main/res/mipmap-hdpi
+        mkdir -p app/src/main/res/mipmap-mdpi
+        mkdir -p app/src/main/res/mipmap-xhdpi
+        mkdir -p app/src/main/res/mipmap-xxhdpi
+        mkdir -p app/src/main/res/mipmap-xxxhdpi
         mkdir -p .github/workflows
 
     - name: Setup Java
@@ -106,6 +111,15 @@ jobs:
         unzip gradle-8.2-bin.zip
         ./gradle-8.2/bin/gradle wrapper --gradle-version 8.2
         chmod +x gradlew
+
+    - name: Add Launcher Icons
+      run: |
+        # 创建一个简单的占位图标
+        convert -size 48x48 xc:blue app/src/main/res/mipmap-mdpi/ic_launcher.png
+        convert -size 72x72 xc:blue app/src/main/res/mipmap-hdpi/ic_launcher.png
+        convert -size 96x96 xc:blue app/src/main/res/mipmap-xhdpi/ic_launcher.png
+        convert -size 144x144 xc:blue app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+        convert -size 192x192 xc:blue app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
 
     - name: Create MainActivity
       run: |
