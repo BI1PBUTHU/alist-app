@@ -1,16 +1,31 @@
-name: Build AList Android App
+name: 构建 AList Android App
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    
     steps:
-    - name: Create Project Structure
+    - name: 检出代码
+      uses: actions/checkout@v4
+      
+    - name: 创建项目结构
       run: |
         mkdir -p app/src/main/java/com/example/alistapp
         mkdir -p app/src/main/res/layout
+        mkdir -p app/src/main/res/values
         mkdir -p app/src/main/res/mipmap-hdpi
         mkdir -p app/src/main/res/mipmap-mdpi
         mkdir -p app/src/main/res/mipmap-xhdpi
@@ -18,15 +33,16 @@ jobs:
         mkdir -p app/src/main/res/mipmap-xxxhdpi
         mkdir -p .github/workflows
 
-    - name: Setup Java
+    - name: 设置 JDK
       uses: actions/setup-java@v3
       with:
         distribution: 'temurin'
         java-version: '17'
+        cache: 'gradle'
 
-    # 创建修改后的 settings.gradle
-    - name: Create settings.gradle
+    - name: 创建 Gradle 配置文件
       run: |
+        # settings.gradle
         cat > settings.gradle << 'EOL'
         pluginManagement {
             repositories {
@@ -39,7 +55,6 @@ jobs:
                 id 'org.jetbrains.kotlin.android' version '1.8.0'
             }
         }
-
         dependencyResolutionManagement {
             repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
             repositories {
@@ -47,189 +62,310 @@ jobs:
                 mavenCentral()
             }
         }
-
         rootProject.name = "AList App"
         include ':app'
         EOL
 
-        # 添加 gradle.properties 文件以支持 AndroidX
-        echo "android.useAndroidX=true" >> gradle.properties
-        echo "android.enableJetifier=true" >> gradle.properties
-
-    # 创建简化后的 build.gradle
-    - name: Create build.gradle
-      run: |
-        cat > build.gradle << 'EOL'
-        // Top-level build file
+        # gradle.properties
+        cat > gradle.properties << 'EOL'
+        org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+        android.useAndroidX=true
+        android.enableJetifier=true
+        kotlin.code.style=official
+        org.gradle.parallel=true
+        org.gradle.caching=true
         EOL
 
-    - name: Create app/build.gradle
-      run: |
+        # Root build.gradle
+        cat > build.gradle << 'EOL'
+        buildscript {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+
+        plugins {
+            id 'com.android.application' version '8.1.0' apply false
+            id 'org.jetbrains.kotlin.android' version '1.8.0' apply false
+        }
+
+        task clean(type: Delete) {
+            delete rootProject.buildDir
+        }
+        EOL
+
+        # App build.gradle
         cat > app/build.gradle << 'EOL'
         plugins {
             id 'com.android.application'
             id 'org.jetbrains.kotlin.android'
         }
-        
+
         android {
             namespace "com.example.alistapp"
             compileSdk 34
-            
+
             defaultConfig {
                 applicationId "com.example.alistapp"
                 minSdk 21
                 targetSdk 34
                 versionCode 1
-                versionName "1.0"
+                versionName "1.0.0"
             }
-            
+
             buildTypes {
                 release {
+                    minifyEnabled true
+                    proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                }
+                debug {
                     minifyEnabled false
+                    debuggable true
                 }
             }
+
             compileOptions {
                 sourceCompatibility JavaVersion.VERSION_17
                 targetCompatibility JavaVersion.VERSION_17
             }
+
             kotlinOptions {
-                jvmTarget = "17"
+                jvmTarget = '17'
+            }
+
+            buildFeatures {
+                viewBinding true
+            }
+
+            lint {
+                abortOnError false
             }
         }
-        
+
         dependencies {
             implementation 'androidx.core:core-ktx:1.12.0'
             implementation 'androidx.appcompat:appcompat:1.6.1'
             implementation 'com.google.android.material:material:1.11.0'
+            implementation 'androidx.webkit:webkit:1.8.0'
+            implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
         }
         EOL
 
-    # 下载并初始化 Gradle
-    - name: Setup Gradle
+    - name: 创建字符串资源
+      run: |
+        cat > app/src/main/res/values/strings.xml << 'EOL'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <string name="app_name">AList</string>
+            <string name="hint_input_url">输入AList地址</string>
+            <string name="btn_load">加载</string>
+            <string name="msg_press_again_exit">再按一次退出应用</string>
+        </resources>
+        EOL
+
+    - name: 设置 Gradle
       run: |
         wget https://services.gradle.org/distributions/gradle-8.2-bin.zip
         unzip gradle-8.2-bin.zip
         ./gradle-8.2/bin/gradle wrapper --gradle-version 8.2
         chmod +x gradlew
 
-    - name: Add Launcher Icons
+    - name: 创建应用图标
       run: |
-        # 安装 ImageMagick
         sudo apt-get update
         sudo apt-get install -y imagemagick
         
-        # 创建一个简单的占位图标
-        convert -size 48x48 xc:blue app/src/main/res/mipmap-mdpi/ic_launcher.png
-        convert -size 72x72 xc:blue app/src/main/res/mipmap-hdpi/ic_launcher.png
-        convert -size 96x96 xc:blue app/src/main/res/mipmap-xhdpi/ic_launcher.png
-        convert -size 144x144 xc:blue app/src/main/res/mipmap-xxhdpi/ic_launcher.png
-        convert -size 192x192 xc:blue app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+        for size in "48x48" "72x72" "96x96" "144x144" "192x192"; do
+          convert -size $size xc:transparent \
+            -fill "#2196F3" \
+            -draw "roundrectangle 0,0,$size,0 10,10" \
+            -pointsize $(echo "$size" | cut -d'x' -f1 | awk '{print $1/2}') \
+            -fill white -gravity center -draw "text 0,0 'A'" \
+            "icon_$size.png"
+        done
+        
+        mv icon_48x48.png app/src/main/res/mipmap-mdpi/ic_launcher.png
+        mv icon_72x72.png app/src/main/res/mipmap-hdpi/ic_launcher.png
+        mv icon_96x96.png app/src/main/res/mipmap-xhdpi/ic_launcher.png
+        mv icon_144x144.png app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+        mv icon_192x192.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
 
-    - name: Create MainActivity
+    - name: 创建 MainActivity
       run: |
         cat > app/src/main/java/com/example/alistapp/MainActivity.kt << 'EOL'
         package com.example.alistapp
-        
+
         import android.content.Context
         import android.os.Bundle
-        import android.webkit.WebView
-        import android.webkit.WebViewClient
-        import android.widget.Button
-        import android.widget.EditText
+        import android.webkit.*
+        import android.widget.Toast
         import androidx.appcompat.app.AppCompatActivity
-        
+        import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        import com.example.alistapp.databinding.ActivityMainBinding
+
         class MainActivity : AppCompatActivity() {
-            private lateinit var webView: WebView
-            private lateinit var urlInput: EditText
-            private lateinit var saveButton: Button
-        
+            private lateinit var binding: ActivityMainBinding
+            private var lastBackPressTime: Long = 0
+
             override fun onCreate(savedInstanceState: Bundle?) {
                 super.onCreate(savedInstanceState)
-                setContentView(R.layout.activity_main)
-        
-                webView = findViewById(R.id.webView)
-                urlInput = findViewById(R.id.urlInput)
-                saveButton = findViewById(R.id.saveButton)
-        
-                webView.settings.apply {
+                binding = ActivityMainBinding.inflate(layoutInflater)
+                setContentView(binding.root)
+
+                setupWebView()
+                setupUI()
+                loadSavedUrl()
+            }
+
+            private fun setupWebView() {
+                binding.webView.settings.apply {
                     javaScriptEnabled = true
                     domStorageEnabled = true
                     databaseEnabled = true
-                    setAppCacheEnabled(true)
+                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                    
+                    useWideViewPort = true
+                    loadWithOverviewMode = true
+                    
+                    builtInZoomControls = true
+                    displayZoomControls = false
+
+                    // 允许文件访问
+                    allowFileAccess = true
+                    allowContentAccess = true
                 }
-                webView.webViewClient = WebViewClient()
-        
+
+                binding.webView.webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        binding.swipeRefresh.isRefreshing = false
+                    }
+
+                    override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                        super.onReceivedError(view, request, error)
+                        binding.swipeRefresh.isRefreshing = false
+                    }
+                }
+
+                binding.webView.webChromeClient = WebChromeClient()
+            }
+
+            private fun setupUI() {
+                binding.saveButton.setOnClickListener {
+                    val url = binding.urlInput.text.toString()
+                    if (url.isNotEmpty()) {
+                        saveAndLoadUrl(url)
+                    }
+                }
+
+                binding.swipeRefresh.setOnRefreshListener {
+                    binding.webView.reload()
+                }
+            }
+
+            private fun loadSavedUrl() {
                 val sharedPref = getPreferences(Context.MODE_PRIVATE)
                 val savedUrl = sharedPref.getString("alist_url", "")
                 if (!savedUrl.isNullOrEmpty()) {
-                    urlInput.setText(savedUrl)
-                    webView.loadUrl(savedUrl)
-                }
-        
-                saveButton.setOnClickListener {
-                    val url = urlInput.text.toString()
-                    if (url.isNotEmpty()) {
-                        sharedPref.edit().putString("alist_url", url).apply()
-                        webView.loadUrl(url)
-                    }
+                    binding.urlInput.setText(savedUrl)
+                    binding.webView.loadUrl(savedUrl)
                 }
             }
-        
+
+            private fun saveAndLoadUrl(url: String) {
+                var formattedUrl = url
+                if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                    formattedUrl = "https://$url"
+                }
+                
+                getPreferences(Context.MODE_PRIVATE).edit()
+                    .putString("alist_url", formattedUrl)
+                    .apply()
+                    
+                binding.webView.loadUrl(formattedUrl)
+            }
+
             override fun onBackPressed() {
-                if (webView.canGoBack()) webView.goBack()
-                else super.onBackPressed()
+                when {
+                    binding.webView.canGoBack() -> binding.webView.goBack()
+                    System.currentTimeMillis() - lastBackPressTime > 2000 -> {
+                        Toast.makeText(this, getString(R.string.msg_press_again_exit), Toast.LENGTH_SHORT).show()
+                        lastBackPressTime = System.currentTimeMillis()
+                    }
+                    else -> super.onBackPressed()
+                }
             }
         }
         EOL
 
-    - name: Create Layout
+    - name: 创建布局文件
       run: |
         cat > app/src/main/res/layout/activity_main.xml << 'EOL'
         <?xml version="1.0" encoding="utf-8"?>
         <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:padding="16dp">
-        
-            <EditText
-                android:id="@+id/urlInput"
+            android:orientation="vertical">
+
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="输入AList地址"
-                android:inputType="textUri" />
-        
-            <Button
-                android:id="@+id/saveButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="保存并加载" />
-        
-            <WebView
-                android:id="@+id/webView"
+                android:orientation="horizontal"
+                android:padding="8dp">
+
+                <EditText
+                    android:id="@+id/urlInput"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="@string/hint_input_url"
+                    android:inputType="textUri"
+                    android:padding="12dp"
+                    android:background="@android:drawable/editbox_background"
+                    android:importantForAutofill="no" />
+
+                <Button
+                    android:id="@+id/saveButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/btn_load" />
+
+            </LinearLayout>
+
+            <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+                android:id="@+id/swipeRefresh"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_weight="1" />
-        
+                android:layout_weight="1">
+
+                <WebView
+                    android:id="@+id/webView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+            </androidx.swiperefreshlayout.widget_SwipeRefreshLayout>
+
         </LinearLayout>
         EOL
 
-    - name: Create AndroidManifest
+    - name: 创建 AndroidManifest
       run: |
         cat > app/src/main/AndroidManifest.xml << 'EOL'
         <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            package="com.example.alistapp">
-        
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
             <uses-permission android:name="android.permission.INTERNET" />
-        
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
             <application
                 android:allowBackup="true"
                 android:icon="@mipmap/ic_launcher"
-                android:label="AList App"
+                android:label="@string/app_name"
                 android:supportsRtl="true"
                 android:theme="@style/Theme.AppCompat.Light.DarkActionBar"
                 android:usesCleartextTraffic="true">
+                
                 <activity
                     android:name=".MainActivity"
                     android:exported="true"
@@ -241,14 +377,45 @@ jobs:
                     </intent-filter>
                 </activity>
             </application>
+
         </manifest>
         EOL
 
-    - name: Build APK
-      run: ./gradlew assembleDebug
+    - name: 创建 ProGuard 规则
+      run: |
+        cat > app/proguard-rules.pro << 'EOL'
+        # 保留 WebView 相关
+        -keepclassmembers class fqcn.of.javascript.interface.for.webview {
+           public *;
+        }
+        -keepattributes JavascriptInterface
+        
+        # 保留 ViewBinding
+        -keep class com.example.alistapp.databinding.** { *; }
+        
+        # 基本的 Android 混淆规则
+        -keepattributes Signature
+        -keepattributes *Annotation*
+        -keepattributes SourceFile,LineNumberTable
+        
+        # 保留 R 文件
+        -keep class **.R$* { *; }
+        EOL
 
-    - name: Upload APK
+    - name: 构建 APK
+      run: |
+        chmod +x gradlew
+        ./gradlew assembleDebug
+        ./gradlew assembleRelease
+
+    - name: 上传 Debug APK
       uses: actions/upload-artifact@v3
       with:
-        name: alist-app
+        name: alist-app-debug
         path: app/build/outputs/apk/debug/app-debug.apk
+
+    - name: 上传 Release APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: alist-app-release
+        path: app/build/outputs/apk/release/app-release.apk
