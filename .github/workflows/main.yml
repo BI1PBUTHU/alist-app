@@ -1,1 +1,507 @@
+name: Build AList Android App (Material3 + Settings)
 
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Project Structure
+        run: |
+          mkdir -p app/src/main/java/com/example/alistapp
+          mkdir -p app/src/main/java/com/example/alistapp/ui
+          mkdir -p app/src/main/java/com/example/alistapp/ui/dialog
+          mkdir -p app/src/main/java/com/example/alistapp/ui/settings
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/menu
+          mkdir -p app/src/main/res/xml
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+          mkdir -p app/src/main/res/values
+          mkdir -p .github/workflows
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # ============ settings.gradle ============
+      - name: Create settings.gradle
+        run: |
+          cat > settings.gradle << 'EOL'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+              plugins {
+                  id 'com.android.application' version '8.1.0'
+                  id 'org.jetbrains.kotlin.android' version '1.8.22'
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "AListMaterialApp"
+          include ':app'
+          EOL
+
+          echo "android.useAndroidX=true" >> gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
+
+      # ============ 顶层 build.gradle ============
+      - name: Create build.gradle
+        run: |
+          cat > build.gradle << 'EOL'
+          // Top-level build file (empty for demonstration)
+          EOL
+
+      # ============ app/build.gradle ============
+      - name: Create app/build.gradle
+        run: |
+          cat > app/build.gradle << 'EOL'
+          plugins {
+              id 'com.android.application'
+              id 'org.jetbrains.kotlin.android'
+          }
+
+          android {
+              namespace "com.example.alistapp"
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.example.alistapp"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+
+              // 如果在新版本 Gradle 里有严格的 Lint，可以在此放宽
+              lint {
+                  warningsAsErrors = false
+                  abortOnError = false
+              }
+          }
+
+          dependencies {
+              // Kotlin 标准库（通常插件会自动添加，这里仅显式声明以防万一）
+              implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+              
+              // AndroidX 基础
+              implementation 'androidx.core:core-ktx:1.12.0'
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+
+              // Material3
+              implementation 'com.google.android.material:material:1.11.0'
+
+              // PreferenceFragmentCompat
+              implementation 'androidx.preference:preference-ktx:1.2.1'
+          }
+          EOL
+
+      # ============ 下载并初始化 Gradle ============
+      - name: Setup Gradle
+        run: |
+          wget https://services.gradle.org/distributions/gradle-8.2-bin.zip
+          unzip gradle-8.2-bin.zip
+          ./gradle-8.2/bin/gradle wrapper --gradle-version 8.2
+          chmod +x gradlew
+
+      # ============ 添加图标 =============
+      - name: Add Launcher Icons
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
+
+          # 简单的占位图标
+          convert -size 48x48 xc:blue app/src/main/res/mipmap-mdpi/ic_launcher.png
+          convert -size 72x72 xc:blue app/src/main/res/mipmap-hdpi/ic_launcher.png
+          convert -size 96x96 xc:blue app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          convert -size 144x144 xc:blue app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          convert -size 192x192 xc:blue app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
+      # ============ 主题配置（values/themes.xml） ============
+      - name: Create themes.xml
+        run: |
+          cat > app/src/main/res/values/themes.xml << 'EOL'
+          <resources xmlns:tools="http://schemas.android.com/tools">
+              <style name="Theme.AListMaterial" parent="Theme.Material3.Light.NoActionBar">
+                  <!-- 你的自定义颜色或属性 -->
+                  <item name="android:windowFullscreen">false</item>
+                  <item name="android:windowLightStatusBar">true</item>
+                  <item name="android:windowLightNavigationBar">true</item>
+              </style>
+          </resources>
+          EOL
+
+      # ============ AndroidManifest ============
+      - name: Create AndroidManifest
+        run: |
+          cat > app/src/main/AndroidManifest.xml << 'EOL'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.example.alistapp">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="AList Material App"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.AListMaterial"
+                  android:usesCleartextTraffic="true">
+
+                  <!-- MainActivity -->
+                  <activity android:name=".ui.MainActivity"
+                            android:exported="true"
+                            android:launchMode="singleTask">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <!-- SettingsActivity -->
+                  <activity android:name=".ui.settings.SettingsActivity"
+                            android:exported="false" />
+
+              </application>
+          </manifest>
+          EOL
+
+      # ============ MainActivity：右上角菜单 + WebView ============
+      - name: Create MainActivity
+        run: |
+          cat > app/src/main/java/com/example/alistapp/ui/MainActivity.kt << 'EOL'
+          package com.example.alistapp.ui
+
+          import android.content.Context
+          import android.content.Intent
+          import android.os.Bundle
+          import android.webkit.WebView
+          import android.webkit.WebViewClient
+          import androidx.appcompat.app.AppCompatActivity
+          import androidx.appcompat.widget.Toolbar
+          import com.example.alistapp.R
+          import com.example.alistapp.ui.dialog.AListDialogFragment
+          import com.example.alistapp.ui.settings.SettingsActivity
+
+          class MainActivity : AppCompatActivity() {
+              private lateinit var webView: WebView
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContentView(R.layout.activity_main)
+
+                  val toolbar = findViewById<Toolbar>(R.id.toolbar)
+                  setSupportActionBar(toolbar)
+
+                  webView = findViewById(R.id.webView)
+                  webView.settings.apply {
+                      javaScriptEnabled = true
+                      domStorageEnabled = true
+                      // 如果高版本里已不支持或已弃用，可先注释以下
+                      // databaseEnabled = true
+                      // setAppCacheEnabled(true)
+                  }
+                  webView.webViewClient = WebViewClient()
+              }
+
+              override fun onResume() {
+                  super.onResume()
+                  // 读取 SharedPreferences 中的地址并加载
+                  val sharedPref = getPreferences(Context.MODE_PRIVATE)
+                  val savedUrl = sharedPref.getString("alist_url", "")
+                  if (!savedUrl.isNullOrEmpty()) {
+                      webView.loadUrl(savedUrl)
+                  }
+              }
+
+              override fun onCreateOptionsMenu(menu: android.view.Menu?): Boolean {
+                  menuInflater.inflate(R.menu.menu_main, menu)
+                  return true
+              }
+
+              override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
+                  return when (item.itemId) {
+                      R.id.action_settings -> {
+                          // 打开完整“设置”界面
+                          startActivity(Intent(this, SettingsActivity::class.java))
+                          true
+                      }
+                      R.id.action_input_dialog -> {
+                          // 显示一个DialogFragment来手动输入
+                          AListDialogFragment().show(supportFragmentManager, "AListDialog")
+                          true
+                      }
+                      else -> super.onOptionsItemSelected(item)
+                  }
+              }
+
+              override fun onBackPressed() {
+                  if (webView.canGoBack()) {
+                      webView.goBack()
+                  } else {
+                      super.onBackPressed()
+                  }
+              }
+          }
+          EOL
+
+      # ============ activity_main.xml ============
+      - name: Create activity_main.xml
+        run: |
+          cat > app/src/main/res/layout/activity_main.xml << 'EOL'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout
+              xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:app="http://schemas.android.com/apk/res-auto"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical">
+
+              <androidx.appcompat.widget.Toolbar
+                  android:id="@+id/toolbar"
+                  android:layout_width="match_parent"
+                  android:layout_height="?attr/actionBarSize"
+                  android:background="?attr/colorPrimary"
+                  app:popupTheme="@style/ThemeOverlay.Material3" />
+
+              <WebView
+                  android:id="@+id/webView"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent" />
+
+          </LinearLayout>
+          EOL
+
+      # ============ menu_main.xml：设置按钮 + DialogFragment按钮 ============
+      - name: Create menu_main.xml
+        run: |
+          cat > app/src/main/res/menu/menu_main.xml << 'EOL'
+          <?xml version="1.0" encoding="utf-8"?>
+          <menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <!-- 打开 SettingsActivity -->
+              <item
+                  android:id="@+id/action_settings"
+                  android:title="设置"
+                  android:icon="@android:drawable/ic_menu_preferences"
+                  android:showAsAction="always" />
+
+              <!-- 打开 DialogFragment -->
+              <item
+                  android:id="@+id/action_input_dialog"
+                  android:title="地址对话框"
+                  android:icon="@android:drawable/ic_menu_edit"
+                  android:showAsAction="always" />
+
+          </menu>
+          EOL
+
+      # ============ SettingsActivity.kt：仅容器，加载PreferenceFragment ============
+      - name: Create SettingsActivity
+        run: |
+          cat > app/src/main/java/com/example/alistapp/ui/settings/SettingsActivity.kt << 'EOL'
+          package com.example.alistapp.ui.settings
+
+          import android.os.Bundle
+          import androidx.appcompat.app.AppCompatActivity
+          import com.example.alistapp.R
+
+          class SettingsActivity : AppCompatActivity() {
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContentView(R.layout.activity_settings)
+
+                  // 如果还想要一个顶部Toolbar，可在XML中加入
+
+                  // 加载 SettingsFragment
+                  supportFragmentManager
+                      .beginTransaction()
+                      .replace(R.id.settings_container, SettingsFragment())
+                      .commit()
+              }
+          }
+          EOL
+
+      # ============ activity_settings.xml：容器布局 ============
+      - name: Create activity_settings.xml
+        run: |
+          cat > app/src/main/res/layout/activity_settings.xml << 'EOL'
+          <?xml version="1.0" encoding="utf-8"?>
+          <FrameLayout 
+              xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent">
+              <!-- 容器用于承载 SettingsFragment -->
+              <FrameLayout
+                  android:id="@+id/settings_container"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent" />
+          </FrameLayout>
+          EOL
+
+      # ============ SettingsFragment.kt：使用 PreferenceFragmentCompat ============
+      - name: Create SettingsFragment
+        run: |
+          cat > app/src/main/java/com/example/alistapp/ui/settings/SettingsFragment.kt << 'EOL'
+          package com.example.alistapp.ui.settings
+
+          import android.os.Bundle
+          import androidx.preference.PreferenceFragmentCompat
+          import com.example.alistapp.R
+
+          class SettingsFragment : PreferenceFragmentCompat() {
+              override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+                  setPreferencesFromResource(R.xml.preferences, rootKey)
+              }
+          }
+          EOL
+
+      # ============ preferences.xml：PreferenceScreen 示例 ============
+      - name: Create preferences.xml
+        run: |
+          cat > app/src/main/res/xml/preferences.xml << 'EOL'
+          <?xml version="1.0" encoding="utf-8"?>
+          <PreferenceScreen
+              xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <!-- AList URL 地址设置项 -->
+              <EditTextPreference
+                  android:key="alist_url"
+                  android:title="AList地址"
+                  android:dialogTitle="输入AList地址"
+                  android:singleLine="true"
+                  android:useSimpleSummaryProvider="true"
+                  android:inputType="textUri" />
+
+              <!-- 你可再添加更多Preference -->
+
+          </PreferenceScreen>
+          EOL
+
+      # ============ AListDialogFragment：让用户弹窗输入 ============
+      - name: Create AListDialogFragment
+        run: |
+          cat > app/src/main/java/com/example/alistapp/ui/dialog/AListDialogFragment.kt << 'EOL'
+          package com.example.alistapp.ui.dialog
+
+          import android.content.Context
+          import android.os.Bundle
+          import android.view.LayoutInflater
+          import android.view.View
+          import android.view.ViewGroup
+          import android.widget.Button
+          import com.google.android.material.textfield.TextInputEditText
+          import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+          import com.example.alistapp.R
+
+          class AListDialogFragment : BottomSheetDialogFragment() {
+
+              private lateinit var editTextUrl: TextInputEditText
+              private lateinit var btnOk: Button
+
+              override fun onCreateView(
+                  inflater: LayoutInflater,
+                  container: ViewGroup?,
+                  savedInstanceState: Bundle?
+              ): View? {
+                  val view = inflater.inflate(R.layout.dialog_alist_url, container, false)
+                  editTextUrl = view.findViewById(R.id.editTextUrl)
+                  btnOk = view.findViewById(R.id.btnOk)
+                  return view
+              }
+
+              override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+                  super.onViewCreated(view, savedInstanceState)
+
+                  val sharedPref = requireActivity().getPreferences(Context.MODE_PRIVATE)
+                  val savedUrl = sharedPref.getString("alist_url", "")
+                  editTextUrl.setText(savedUrl)
+
+                  btnOk.setOnClickListener {
+                      val newUrl = editTextUrl.text?.toString()?.trim()
+                      if (!newUrl.isNullOrEmpty()) {
+                          sharedPref.edit().putString("alist_url", newUrl).apply()
+                      }
+                      dismiss()
+                  }
+              }
+          }
+          EOL
+
+      # ============ dialog_alist_url.xml：BottomSheetDialogFragment布局 ============
+      - name: Create dialog_alist_url.xml
+        run: |
+          cat > app/src/main/res/layout/dialog_alist_url.xml << 'EOL'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout
+              xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:tools="http://schemas.android.com/tools"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:orientation="vertical"
+              android:padding="16dp"
+              tools:ignore="MissingDefaultResource">
+
+              <com.google.android.material.textfield.TextInputLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:hint="AList地址">
+
+                  <com.google.android.material.textfield.TextInputEditText
+                      android:id="@+id/editTextUrl"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:inputType="textUri" />
+              </com.google.android.material.textfield.TextInputLayout>
+
+              <Button
+                  android:id="@+id/btnOk"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="确定"
+                  android:layout_marginTop="16dp" />
+
+          </LinearLayout>
+          EOL
+
+      # ============ 最后：编译生成Debug APK ============
+      - name: Build APK
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: alist-material-app
+          path: app/build/outputs/apk/debug/app-debug.apk
