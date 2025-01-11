@@ -30,7 +30,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # ============ settings.gradle ============
+      # ============ 1) settings.gradle ============
       - name: Create settings.gradle
         run: |
           cat > settings.gradle << 'EOL'
@@ -58,17 +58,20 @@ jobs:
           include ':app'
           EOL
 
+          # gradle.properties
           echo "android.useAndroidX=true" >> gradle.properties
           echo "android.enableJetifier=true" >> gradle.properties
+          # 可选：禁止对 compileSdk=34 的警告
+          echo "android.suppressUnsupportedCompileSdk=34" >> gradle.properties
 
-      # ============ 顶层 build.gradle ============
+      # ============ 2) 顶层 build.gradle ============
       - name: Create build.gradle
         run: |
           cat > build.gradle << 'EOL'
           // Top-level build file (empty for demonstration)
           EOL
 
-      # ============ app/build.gradle ============
+      # ============ 3) app/build.gradle ============
       - name: Create app/build.gradle
         run: |
           cat > app/build.gradle << 'EOL'
@@ -103,7 +106,7 @@ jobs:
                   jvmTarget = "17"
               }
 
-              // 如果在新版本 Gradle 里有严格的 Lint，可以在此放宽
+              // 放宽 Lint，让一些警告不会导致失败
               lint {
                   warningsAsErrors = false
                   abortOnError = false
@@ -121,12 +124,12 @@ jobs:
               // Material3
               implementation 'com.google.android.material:material:1.11.0'
 
-              // PreferenceFragmentCompat
+              // PreferenceFragmentCompat (支持 'useSimpleSummaryProvider')
               implementation 'androidx.preference:preference-ktx:1.2.1'
           }
           EOL
 
-      # ============ 下载并初始化 Gradle ============
+      # ============ 4) 下载并初始化 Gradle ============
       - name: Setup Gradle
         run: |
           wget https://services.gradle.org/distributions/gradle-8.2-bin.zip
@@ -134,26 +137,24 @@ jobs:
           ./gradle-8.2/bin/gradle wrapper --gradle-version 8.2
           chmod +x gradlew
 
-      # ============ 添加图标 =============
+      # ============ 5) 添加图标占位 ============
       - name: Add Launcher Icons
         run: |
           sudo apt-get update
           sudo apt-get install -y imagemagick
 
-          # 简单的占位图标
           convert -size 48x48 xc:blue app/src/main/res/mipmap-mdpi/ic_launcher.png
           convert -size 72x72 xc:blue app/src/main/res/mipmap-hdpi/ic_launcher.png
           convert -size 96x96 xc:blue app/src/main/res/mipmap-xhdpi/ic_launcher.png
           convert -size 144x144 xc:blue app/src/main/res/mipmap-xxhdpi/ic_launcher.png
           convert -size 192x192 xc:blue app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
 
-      # ============ 主题配置（values/themes.xml） ============
+      # ============ 6) 主题配置（values/themes.xml） ============
       - name: Create themes.xml
         run: |
           cat > app/src/main/res/values/themes.xml << 'EOL'
           <resources xmlns:tools="http://schemas.android.com/tools">
               <style name="Theme.AListMaterial" parent="Theme.Material3.Light.NoActionBar">
-                  <!-- 你的自定义颜色或属性 -->
                   <item name="android:windowFullscreen">false</item>
                   <item name="android:windowLightStatusBar">true</item>
                   <item name="android:windowLightNavigationBar">true</item>
@@ -161,16 +162,13 @@ jobs:
           </resources>
           EOL
 
-      # ============ AndroidManifest ============
+      # ============ 7) AndroidManifest ============
       - name: Create AndroidManifest
         run: |
           cat > app/src/main/AndroidManifest.xml << 'EOL'
           <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-              package="com.example.alistapp">
-
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
-
               <application
                   android:allowBackup="true"
                   android:icon="@mipmap/ic_launcher"
@@ -197,7 +195,7 @@ jobs:
           </manifest>
           EOL
 
-      # ============ MainActivity：右上角菜单 + WebView ============
+      # ============ 8) MainActivity：右上角菜单 + WebView ============
       - name: Create MainActivity
         run: |
           cat > app/src/main/java/com/example/alistapp/ui/MainActivity.kt << 'EOL'
@@ -228,16 +226,13 @@ jobs:
                   webView.settings.apply {
                       javaScriptEnabled = true
                       domStorageEnabled = true
-                      // 如果高版本里已不支持或已弃用，可先注释以下
-                      // databaseEnabled = true
-                      // setAppCacheEnabled(true)
                   }
                   webView.webViewClient = WebViewClient()
               }
 
               override fun onResume() {
                   super.onResume()
-                  // 读取 SharedPreferences 中的地址并加载
+                  // 从偏好中读取地址
                   val sharedPref = getPreferences(Context.MODE_PRIVATE)
                   val savedUrl = sharedPref.getString("alist_url", "")
                   if (!savedUrl.isNullOrEmpty()) {
@@ -253,12 +248,10 @@ jobs:
               override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
                   return when (item.itemId) {
                       R.id.action_settings -> {
-                          // 打开完整“设置”界面
                           startActivity(Intent(this, SettingsActivity::class.java))
                           true
                       }
                       R.id.action_input_dialog -> {
-                          // 显示一个DialogFragment来手动输入
                           AListDialogFragment().show(supportFragmentManager, "AListDialog")
                           true
                       }
@@ -276,7 +269,7 @@ jobs:
           }
           EOL
 
-      # ============ activity_main.xml ============
+      # ============ 9) activity_main.xml ============
       - name: Create activity_main.xml
         run: |
           cat > app/src/main/res/layout/activity_main.xml << 'EOL'
@@ -303,31 +296,27 @@ jobs:
           </LinearLayout>
           EOL
 
-      # ============ menu_main.xml：设置按钮 + DialogFragment按钮 ============
+      # ============ 10) menu_main.xml ============
       - name: Create menu_main.xml
         run: |
           cat > app/src/main/res/menu/menu_main.xml << 'EOL'
           <?xml version="1.0" encoding="utf-8"?>
           <menu xmlns:android="http://schemas.android.com/apk/res/android">
-
-              <!-- 打开 SettingsActivity -->
               <item
                   android:id="@+id/action_settings"
                   android:title="设置"
                   android:icon="@android:drawable/ic_menu_preferences"
                   android:showAsAction="always" />
 
-              <!-- 打开 DialogFragment -->
               <item
                   android:id="@+id/action_input_dialog"
-                  android:title="地址对话框"
+                  android:title="对话框"
                   android:icon="@android:drawable/ic_menu_edit"
                   android:showAsAction="always" />
-
           </menu>
           EOL
 
-      # ============ SettingsActivity.kt：仅容器，加载PreferenceFragment ============
+      # ============ 11) SettingsActivity、SettingsFragment ============
       - name: Create SettingsActivity
         run: |
           cat > app/src/main/java/com/example/alistapp/ui/settings/SettingsActivity.kt << 'EOL'
@@ -338,14 +327,10 @@ jobs:
           import com.example.alistapp.R
 
           class SettingsActivity : AppCompatActivity() {
-
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
                   setContentView(R.layout.activity_settings)
 
-                  // 如果还想要一个顶部Toolbar，可在XML中加入
-
-                  // 加载 SettingsFragment
                   supportFragmentManager
                       .beginTransaction()
                       .replace(R.id.settings_container, SettingsFragment())
@@ -354,7 +339,6 @@ jobs:
           }
           EOL
 
-      # ============ activity_settings.xml：容器布局 ============
       - name: Create activity_settings.xml
         run: |
           cat > app/src/main/res/layout/activity_settings.xml << 'EOL'
@@ -363,15 +347,15 @@ jobs:
               xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent"
               android:layout_height="match_parent">
-              <!-- 容器用于承载 SettingsFragment -->
+
               <FrameLayout
                   android:id="@+id/settings_container"
                   android:layout_width="match_parent"
                   android:layout_height="match_parent" />
+
           </FrameLayout>
           EOL
 
-      # ============ SettingsFragment.kt：使用 PreferenceFragmentCompat ============
       - name: Create SettingsFragment
         run: |
           cat > app/src/main/java/com/example/alistapp/ui/settings/SettingsFragment.kt << 'EOL'
@@ -388,29 +372,29 @@ jobs:
           }
           EOL
 
-      # ============ preferences.xml：PreferenceScreen 示例 ============
       - name: Create preferences.xml
         run: |
           cat > app/src/main/res/xml/preferences.xml << 'EOL'
           <?xml version="1.0" encoding="utf-8"?>
           <PreferenceScreen
-              xmlns:android="http://schemas.android.com/apk/res/android">
+              xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:app="http://schemas.android.com/apk/res-auto">
 
-              <!-- AList URL 地址设置项 -->
+              <!-- AList URL 设置项 -->
               <EditTextPreference
                   android:key="alist_url"
                   android:title="AList地址"
                   android:dialogTitle="输入AList地址"
                   android:singleLine="true"
-                  android:useSimpleSummaryProvider="true"
+                  app:useSimpleSummaryProvider="true"
                   android:inputType="textUri" />
 
-              <!-- 你可再添加更多Preference -->
+              <!-- 其他设置项可继续添加 -->
 
           </PreferenceScreen>
           EOL
 
-      # ============ AListDialogFragment：让用户弹窗输入 ============
+      # ============ 12) AListDialogFragment：用 BottomSheetDialogFragment 让用户弹窗输入 ============
       - name: Create AListDialogFragment
         run: |
           cat > app/src/main/java/com/example/alistapp/ui/dialog/AListDialogFragment.kt << 'EOL'
@@ -422,9 +406,9 @@ jobs:
           import android.view.View
           import android.view.ViewGroup
           import android.widget.Button
+          import com.example.alistapp.R
           import com.google.android.material.textfield.TextInputEditText
           import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-          import com.example.alistapp.R
 
           class AListDialogFragment : BottomSheetDialogFragment() {
 
@@ -460,7 +444,7 @@ jobs:
           }
           EOL
 
-      # ============ dialog_alist_url.xml：BottomSheetDialogFragment布局 ============
+      # ============ 13) dialog_alist_url.xml ============
       - name: Create dialog_alist_url.xml
         run: |
           cat > app/src/main/res/layout/dialog_alist_url.xml << 'EOL'
@@ -496,7 +480,7 @@ jobs:
           </LinearLayout>
           EOL
 
-      # ============ 最后：编译生成Debug APK ============
+      # ============ 14) 编译并上传 APK ============
       - name: Build APK
         run: ./gradlew assembleDebug
 
